@@ -1,0 +1,51 @@
+ -- Calculating Average Revenue per User
+ARPU = DIVIDE([Truetotal_mrr],[Active Customers])
+
+-- AT-Risk Customers Count  
+At-Risk Customers Count = CALCULATE([Total Count],'dbs subscriptions'[churned] = "No",
+                                    'dbs subscriptions'[feature_usage_pct] <= 36,'dbs subscriptions'[nps_score] <= 4)
+
+-- Churned MRR  
+Churned_mrr = VAR Currentmonthstart = FORMAT(MAX('dbs monthly_revenue'[month]),"yyyy-MM") RETURN
+  SUMX('dbs subscriptions', VAR Customerchurn_date = IF(ISBLANK('dbs subscriptions'[churn_date]), BLANK(), FORMAT('dbs subscriptions'[churn_date], "yyyy-MM")) RETURN 
+       IF('dbs subscriptions'[churned] = "Yes" && Customerchurn_date = Currentmonthstart, 'dbs subscriptions'[monthly_revenue], 0 ))
+
+-- Customer Lifetime Value  
+CLV = [Avg Monthly Revenue] * [Average Months Active]
+
+-- CLV: CAC Ratio
+CLV CAC Ratio = DIVIDE([CLV],AVERAGE('dbs monthly_revenue'[customer_acquisition_cost]),0)
+
+-- Net MRR
+Net_mrr = [New_mrr] - [Churned_mrr]
+
+-- New MRR
+New_mrr = VAR Currentmonthstart = FORMAT(MAX('dbs monthly_revenue'[month]),"yyyy-MM") RETURN 
+  SUMX('dbs subscriptions', VAR Customer_signupdate = FORMAT('dbs subscriptions'[signup_date],"yyyy-MM") RETURN 
+       IF(Customer_signupdate = Currentmonthstart, 'dbs subscriptions'[monthly_revenue],0 ))
+
+-- Total Wasted Customer Acquisition Cost
+Total Wasted CAC = SUMX(FILTER('dbs subscriptions','dbs subscriptions'[churned] = "Yes"),
+                        VAR signupmonth = STARTOFMONTH('dbs subscriptions'[signup_date]) RETURN 
+                        LOOKUPVALUE('dbs monthly_revenue'[customer_acquisition_cost],'dbs monthly_revenue'[month],signupmonth))
+
+-- Revised Total MRR
+Truetotal_mrr = VAR max_date = MAX('dbs monthly_revenue'[month]) RETURN 
+  SUMX(FILTER(ALLSELECTED('dbs monthly_revenue'),'dbs monthly_revenue'[month] <= max_date), [Net_mrr])
+-- Upgraded
+Upgraded_raw = CALCULATE(COUNTROWS('dbs subscriptions'),'dbs subscriptions'[upgraded] = "Yes")
+
+-- Active customers
+Active Customers = CALCULATE([Total Count] - [Churned Customers])
+
+-- Churn rate
+Churn Rate % = DIVIDE([Churned Customers], [Total Count], 0)
+
+-- Churned Customers
+Churned Customers = CALCULATE([Total Count],'dbs subscriptions'[churned] = "Yes")
+
+-- Life span months
+Life Span Months = IF('dbs subscriptions'[churned] = "Yes", DATEDIFF('dbs subscriptions'[signup_date], 'dbs subscriptions'[churn_date], MONTH), BLANK())
+
+-- Total count
+Total Count = COUNT('dbs subscriptions'[customer_id])
